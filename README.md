@@ -101,6 +101,24 @@ circular loop), checked against magpylib:
 
 The geometry, turn counts, current imbalance and stack offsets are constants at the top of that file.
 
+**Opto-optical trap (OOT).** `equations/oot.js` has the closed-form results of the OOT supplemental
+material (Eqs. S11–S32: dual-beam B_eff, the gradient β, the on-axis field and force, depth, trap frequency,
+shift-beam scattering and heating, the modified Doppler temperature) and a port of `oot_shift_beams.py` +
+`oot_rate_eq.py` that agrees with the Python to ~10⁻¹⁵:
+
+| Type | Get |
+|---|---|
+| `S = oot_beams(2 W, 10 mm, 10)` | the shift-beam pyramid (P over every pass, waist, Δs; a plain number is in Γs). Optional: θ, N_quad, retro, φ₀ |
+| `M = mot_beams(1, -0.5)` | six 399 nm cooling beams (s per beam, Δc; optional waist and handedness) |
+| `oot_B(S, x, y, z)`, `oot_Bx` … `oot_Bmag` | B_eff in G at any point (static, as in the paper) |
+| `oot_B_dop(S, x, y, z, vx, vy, vz)`, `oot_shifts(…)` | B_eff and the three ¹P₁ light shifts with Doppler-shifted shift beams |
+| `oot_accel(S, M, x, y, z, vx, vy, vz)`, `oot_ax/ay/az` | acceleration from the rate equations (no gravity) |
+| `oot_grad(S)`, `oot_freq(S, M)`, `oot_depth(S, M)` | gradient tensor, trap frequencies, depth |
+| `p = oot_point(S, x, y, z, vx, vy, vz, M)` | everything at one point as a table; then `p.B`, `p.a`, `p.zeeman`, … |
+
+The 1077 nm line is in the Yb tab (`Yb.k1077`, `Yb.Gamma1077`, `Yb.Isat1077`, …); defaults for θ, N_quad,
+retro and φ₀ are at the top of `equations/oot.js`.
+
 **Conventions**
 
 - Hz and s⁻¹ are the same unit to the calculator. Γ, Ω, Δ and ω are angular (shown as s⁻¹); ν, f and γ are cyclic (Hz). Write detunings as `2*pi*15 MHz`.
@@ -128,6 +146,7 @@ data/user_constants.js          ← your own constants (kept too)
 data/yb174.js                   ← every ¹⁷⁴Yb number, with its source
 equations/amo.js, optics.js, thermal.js, quantum.js, em.js, functions.js   ← the built-in library
 equations/mot_coils.js          ← the lab MOT coil model and its geometry
+equations/oot.js                ← opto-optical trap: SI equations and the shift-beam model
 data/codata2022.js              ← generated from scipy.constants (CODATA 2022)
 ```
 

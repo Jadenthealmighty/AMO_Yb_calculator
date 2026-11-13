@@ -185,6 +185,24 @@
       ]
     },
     {
+      id: '1077', title: '1077 nm · ¹P₁ → 6s7s ¹S₀ · OOT shift beams', lambda: 1077,
+      items: [
+        { key: 'nu1077', expr: 'c*(E_1S0b - E_1P1) to GHz', desc: 'From the level energies used in oot_shift_beams.py (E_6S7S_CM − E_1P1_CM)', src: SRC.nist, tex: '\\nu_{1077}' },
+        { key: 'lambda1077', expr: 'c/nu1077 to nm', desc: 'Vacuum wavelength', src: SRC.derived, tex: '\\lambda_{1077}' },
+        { key: 'k1077', expr: '2*pi/lambda1077 to m^-1', desc: 'Wavevector k_s (K_S in oot_shift_beams.py)', src: SRC.derived, tex: 'k_{1077}' },
+        { key: 'omega1077', expr: '2*pi*nu1077 to s^-1', desc: 'Angular frequency', src: SRC.derived, tex: '\\omega_{1077}' },
+        { key: 'd1077', v: '4.31 au_d', desc: 'Reduced E1 matrix element ⟨¹P₁‖d‖6s7s ¹S₀⟩', src: SRC.sheet + ' (Porsev 1999 / Dzuba & Derevianko 2010)', tex: 'd_{1077}' },
+        { key: 'A1077', expr: 'omega1077^3*d1077^2/(3*pi*eps0*hbar*c^3) to s^-1', desc: 'Partial decay rate A(6s7s ¹S₀ → ¹P₁) from d1077 (J = 0 upper state)', src: SRC.derived, tex: 'A_{1077}' },
+        { key: 'Gamma1077', v: '3.0e7 s^-1', desc: 'Γs used by the OOT simulation (GAMMA_S) and the OOT equations: the 1077 nm partial rate Γ_ji of Eq. S14, also used to regularise 1/Δs', src: 'oot_shift_beams.py', tex: '\\Gamma_{s}' },
+        { key: 'gamma1077', expr: 'Gamma1077/(2*pi) to MHz', desc: 'Γs/2π', src: SRC.derived, tex: '\\gamma_{s}' },
+        { key: 'Isat1077', expr: 'pi*h*c*Gamma1077/(3*lambda1077^3) to mW/cm^2', desc: 'Saturation intensity πhcΓs/3λ³ (ISAT_S in oot_shift_beams.py)', src: SRC.derived, tex: 'I_{sat,s}' },
+        { key: 'Beff1077', expr: 'pi*Gamma1077/(2*gJ_1P1*muB*c*k1077^3) to G cm^2/(W s)', desc: 'Dual-beam effective field per intensity: B_eff = −Beff1077 · I/Δs (I per colour, Δs angular), Eq. S14', src: SRC.derived, tex: 'B_{eff}/(I/\\Delta_s)' },
+        { key: 'vr1077', expr: 'h/(mYb*lambda1077) to mm/s', desc: 'Recoil velocity', src: SRC.derived, tex: 'v_{r,1077}' },
+        { key: 'Er1077', expr: 'h^2/(2*mYb*lambda1077^2) to J', desc: 'Recoil energy E_r,s (shift-beam heating, Eq. S28)', src: SRC.derived, tex: 'E_{r,s}' },
+        { key: 'Tr1077', expr: 'h^2/(mYb*lambda1077^2*kB) to nK', desc: 'Recoil temperature', src: SRC.derived, tex: 'T_{r,1077}' }
+      ]
+    },
+    {
       id: 'levels', title: 'Energy levels, g-factors, lifetimes, branching',
       items: [
         { key: 'E_3P0', v: '17288.439 cm^-1', desc: '6s6p ³P₀', src: SRC.nist, tex: 'E(^3P_0)' },
@@ -197,7 +215,7 @@
         { key: 'E_3D3', v: '25270.902 cm^-1', desc: '5d6s ³D₃', src: SRC.nist, tex: 'E(^3D_3)' },
         { key: 'E_1D2', v: '27677.665 cm^-1', desc: '5d6s ¹D₂', src: SRC.nist, tex: 'E(^1D_2)' },
         { key: 'E_3S1', v: '32694.692 cm^-1', desc: '6s7s ³S₁', src: SRC.nist, tex: 'E(^3S_1)' },
-        { key: 'E_1S0b', v: '34350.65 cm^-1', desc: '6s7s ¹S₀', src: SRC.py, tex: "E(^1S_0')" },
+        { key: 'E_1S0b', v: '34350.65 cm^-1', desc: '6s7s ¹S₀ (upper level of the 1077 nm OOT shift line)', src: SRC.nist, tex: "E(^1S_0')" },
         { key: 'gJ_3P1', v: '1.49282', desc: 'Landé g, ³P₁', src: SRC.nist, tex: 'g_J(^3P_1)' },
         { key: 'gJ_3P2', v: '1.50', desc: 'Landé g, ³P₂', src: SRC.nist, tex: 'g_J(^3P_2)' },
         { key: 'gJ_1P1', v: '1.035', desc: 'Landé g, ¹P₁', src: SRC.nist, tex: 'g_J(^1P_1)' },

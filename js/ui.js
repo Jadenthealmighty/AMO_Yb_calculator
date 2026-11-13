@@ -929,7 +929,7 @@
   })();
 
   // ---- Equations tab ----
-  var EQ_ORDER = ['AMO & laser cooling', 'Optics & lasers', 'Quantum', 'Thermal, vacuum & radiation', 'Electromagnetism & coils', 'Lab MOT coils', 'Functions, lineshapes & numerics', 'My equations'];
+  var EQ_ORDER = ['AMO & laser cooling', 'Optics & lasers', 'Quantum', 'Thermal, vacuum & radiation', 'Electromagnetism & coils', 'Lab MOT coils', 'Opto-optical trap (OOT)', 'Functions, lineshapes & numerics', 'My equations'];
   function eqCategories() {
     var cats = [];
     engine.equations.forEach(function (e) { if (cats.indexOf(e.cat) < 0) cats.push(e.cat); });

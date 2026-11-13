@@ -712,6 +712,13 @@
         var parts = x.entries.map(function (e) { return fmtValue(e, prec); });
         return { text: parts.map(function (p) { return p.text; }).join('; '), tex: parts.map(function (p) { return p.tex; }).join(';\\ ') };
       }
+      if (x && x.__report) {                          // a table of named results (e.g. oot_point)
+        var rows = x.__report.map(function (r) { return { key: r[0], label: r[1], f: fmtValue(x[r[0]], Math.min(prec, 6)) }; });
+        return {
+          text: rows.map(function (r) { return r.key + ' = ' + r.f.text; }).join('; '),
+          tex: '\\begin{array}{lll}' + rows.map(function (r) { return '\\text{' + escTex(r.label) + '} & \\mathtt{.' + escTex(r.key) + '} & ' + r.f.tex; }).join('\\\\') + '\\end{array}'
+        };
+      }
       if (x && typeof x === 'object') {
         var keys = Object.keys(x);
         return { text: '{' + keys.slice(0, 12).join(', ') + (keys.length > 12 ? ', …' : '') + '}', tex: '\\{\\text{object with ' + keys.length + ' fields}\\}' };
