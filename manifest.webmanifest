@@ -1,0 +1,14 @@
+{
+  "name": "PhysCalc",
+  "short_name": "PhysCalc",
+  "description": "Physics calculator with units, ¹⁷⁴Yb data, CODATA constants, equations and matrices",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1f2937",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en" data-theme="auto">
+<head>
+  <meta charset="utf-8">
+  <title>PhysCalc</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1f2937">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="vendor/katex/katex.min.css">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <header id="top">
+    <div class="brand"><img src="icons/icon-192.png" alt=""><span>PhysCalc</span></div>
+    <div class="sheets">
+      <select id="sheet-select" title="Worksheet"></select>
+      <button class="icon" id="sheet-new" title="New worksheet">＋</button>
+      <button class="icon" id="sheet-menu-btn" title="Worksheet options">⋯</button>
+      <div class="menu" id="sheet-menu" hidden>
+        <button data-act="rename">Rename…</button>
+        <button data-act="duplicate">Duplicate</button>
+        <button data-act="export">Export as .txt</button>
+        <button data-act="import">Import .txt…</button>
+        <button data-act="clear">Clear all lines</button>
+        <button data-act="delete" class="danger">Delete worksheet</button>
+      </div>
+      <input type="file" id="import-file" accept=".txt,text/plain" hidden>
+    </div>
+    <div class="spacer"></div>
+    <div class="seg" id="angle-seg" title="Angle unit for sin, cos, … (units like 30 deg always work)">
+      <button data-v="rad">RAD</button><button data-v="deg">DEG</button>
+    </div>
+    <label class="prec" title="Significant digits shown">
+      <select id="precision">
+        <option value="6">6 digits</option><option value="8">8 digits</option><option value="10">10 digits</option>
+        <option value="12">12 digits</option><option value="15">15 digits</option><option value="16">16 digits</option>
+      </select>
+    </label>
+    <button class="icon" id="keypad-btn" title="Show keypad (⌘/Ctrl + ;)">⌨</button>
+    <button class="icon" id="theme-btn" title="Light / dark">◐</button>
+    <button class="icon" id="panel-btn" title="Show / hide side panel (⌘/Ctrl + \)">▤</button>
+  </header>
+
+  <main id="app">
+    <section id="sheet-pane">
+      <div id="rows"></div>
+      <div id="add-row" title="Add a line">＋ new line</div>
+    </section>
+    <div id="splitter" title="Drag to resize"></div>
+    <aside id="panel">
+      <nav id="tabs">
+        <button data-tab="yb">¹⁷⁴Yb</button>
+        <button data-tab="const">Constants</button>
+        <button data-tab="eq">Equations</button>
+        <button data-tab="matrix">Matrix</button>
+        <button data-tab="convert">Convert</button>
+        <button data-tab="help">Help</button>
+      </nav>
+      <div id="panel-search-wrap"><input id="panel-search" type="search" placeholder="Search…  (⌘/Ctrl + K)" autocomplete="off" spellcheck="false"></div>
+      <div id="panel-body">
+        <div class="tab" id="tab-yb"></div>
+        <div class="tab" id="tab-const"></div>
+        <div class="tab" id="tab-eq"></div>
+        <div class="tab" id="tab-matrix"></div>
+        <div class="tab" id="tab-convert"></div>
+        <div class="tab" id="tab-help"></div>
+      </div>
+    </aside>
+  </main>
+
+  <div id="keypad" hidden></div>
+  <div id="ac" hidden></div>
+  <div id="toast"></div>
+  <div id="boot-error" hidden></div>
+
+  <script src="vendor/math.js"></script>
+  <script src="vendor/katex/katex.min.js"></script>
+  <script src="data/codata2022.js"></script>
+  <script src="data/user_constants.js"></script>
+  <script src="data/yb174.js"></script>
+  <script src="equations/functions.js"></script>
+  <script src="equations/amo.js"></script>
+  <script src="equations/optics.js"></script>
+  <script src="equations/thermal.js"></script>
+  <script src="equations/quantum.js"></script>
+  <script src="equations/em.js"></script>
+  <script src="equations/my_equations.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/plot.js"></script>
+  <script src="js/ui.js"></script>
+</body>
+</html>
