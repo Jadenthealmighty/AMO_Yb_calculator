@@ -63,13 +63,18 @@
     var v = getComputedStyle(document.documentElement).getPropertyValue(name);
     return (v && v.trim()) || fallback;
   }
-  function setupCanvas(container, height) {
+  // Plot size: full row width and the default height unless width=/height= (pixels) were given.
+  function plotWidth(container, opts) {
+    var full = Math.max(280, container.clientWidth || 600);
+    return opts && opts.width ? Math.max(280, Math.min(full, Math.round(opts.width))) : full;
+  }
+  function setupCanvas(container, height, width) {
     container.innerHTML = '';
     var wrap = document.createElement('div'); wrap.className = 'plot-wrap';
     var cv = document.createElement('canvas');
     var tip = document.createElement('div'); tip.className = 'plot-tip'; tip.style.display = 'none';
     wrap.appendChild(cv); wrap.appendChild(tip); container.appendChild(wrap);
-    var w = Math.max(280, container.clientWidth || 600), h = height;
+    var w = width || Math.max(280, container.clientWidth || 600), h = height;
     var dpr = window.devicePixelRatio || 1;
     cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
     cv.style.width = w + 'px'; cv.style.height = h + 'px';
@@ -197,7 +202,7 @@
     var showLegend = series.length > 1 || !!(opts.legend && opts.legend.length);
 
     // ---- layout (legend sits above the plot area so it never covers a curve)
-    var W = Math.max(280, container.clientWidth || 600);
+    var W = plotWidth(container, opts);
     var L = 66, R = axes[1] ? 70 : 16, B = 44, pw = W - L - R;
     var meas = document.createElement('canvas').getContext('2d'); meas.font = FONT;
     var legend = [], rows = 0;
@@ -210,8 +215,8 @@
         legend.push({ S: S, txt: txt, x: cx, row: rows - 1 }); cx += wid;
       });
     }
-    var T = 10 + (title ? 22 : 0) + rows * 17 + (rows ? 3 : 0), ph = 210;
-    var C = setupCanvas(container, T + ph + B), ctx = C.ctx;
+    var T = 10 + (title ? 22 : 0) + rows * 17 + (rows ? 3 : 0), ph = opts.height ? Math.max(80, Math.round(opts.height) - T - B) : 210;
+    var C = setupCanvas(container, T + ph + B, W), ctx = C.ctx;
     function sx(x) { return L + ((logx ? Math.log10(x) : x) - xlo) / (xhi - xlo) * pw; }
     function sy(y, A) { return T + (1 - ((logy ? Math.log10(y) : y) - A.lo) / (A.hi - A.lo)) * ph; }
     var fg = css('--fg', '#111'), muted = css('--muted', '#777'), grid = css('--grid', '#e5e7eb'), bg = css('--bg', '#fff');
@@ -339,8 +344,9 @@
     if (hi === lo) hi = lo + 1;
     var opts = spec.opts || {}, title = opts.title !== undefined ? String(opts.title) : '';
     var T = title ? 34 : 12;
-    var C = setupCanvas(container, 288 + T), ctx = C.ctx;
-    var L = 66, R = 74, B = 44, ph = C.h - T - B, pw = Math.min(C.w - L - R, ph * Math.max(0.6, Math.min(2.5, C.w / 600 * 1.4)));
+    var sized = !!(opts.width || opts.height);
+    var C = setupCanvas(container, opts.height ? Math.max(160, Math.round(opts.height)) : 288 + T, plotWidth(container, opts)), ctx = C.ctx;
+    var L = 66, R = 74, B = 44, ph = C.h - T - B, pw = sized ? C.w - L - R : Math.min(C.w - L - R, ph * Math.max(0.6, Math.min(2.5, C.w / 600 * 1.4)));
     var fg = css('--fg', '#111');
     ctx.fillStyle = css('--bg', '#fff'); ctx.fillRect(0, 0, C.w, C.h);
     if (title) { ctx.font = '600 13px' + FONT.slice(4); ctx.fillStyle = fg; ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText(title, L + pw / 2, 9); }

@@ -73,6 +73,7 @@ function's inputs too. `Esc` hides the box.
 | `legend="cold, hot"`, `y2label="…"` | curve names; label for the right-hand axis |
 | `logx=true`, `logy=true`, `zero=true`, `ymin=…`, `ymax=…` | axis options |
 | `normalize=true` | every curve scaled to a peak of 1, to compare shapes |
+| drag a plot's bottom-right corner | resize it (saved in the line as `width=…, height=…` in pixels; double-click the corner for the default size) |
 | `d = points([1, 2, 3] MHz, [4, 5, 6])` then `plot(f, d, 0 MHz, 4 MHz)` | data points on top of a model (`plot(d)` plots the data alone) |
 
 Curves whose units can't be converted into each other (say s⁻¹ and N) are drawn against a second axis on
