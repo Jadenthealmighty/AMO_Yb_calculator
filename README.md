@@ -47,6 +47,11 @@ which both systems already have.
 | `I_peak(15 mW, w) to mW/cm^2` | equation from the library + unit conversion |
 | `f(x) = x^2 sin(x)` | your own function |
 | `M = [[0, 1], [1, 0]]` then `eig(M)` | eigenvalues + normalized eigenvectors |
+| `d = diagonalize(M)` then `d.D`, `d.P`, `d.Pinv` | M = P D P⁻¹ (exact Jacobi method for Hermitian M, so P⁻¹ = P†; units allowed) |
+| `magnitude(v)` | length √(Σ\|vᵢ\|²) of a vector, list or matrix (complex and units fine) |
+| `A[0]`, `A[[0]]`, `A[i, j]`, `v[0]` | first column, first row, element, first element — indices start at **0** |
+| `v[-1]`, `A[end]`, `v[1:3]`, `A[:, 1]`, `A[[0, 2]]` | last entry, last column, slice (end excluded, like Python), column 1, rows 0 and 2 |
+| `v[0] = 5`, `A[[1]] = [1, 1, 1]` | change one entry, a row, or a column (`A[0] = …`) |
 | `v = [1, 2, 3]`, `v'`, `v' * v`, `v * v'` | column vector, its row transpose, inner product, outer product |
 | `plot(f, 0, 10)` / `plot2d(g, -1, 1, -1, 1)` | line plot / heat map |
 | `a = slider(2 mm, 0.5 mm, 5 mm)` | a variable with a slider (value, min, max[, step]) |
@@ -127,6 +132,7 @@ retro and φ₀ are at the top of `equations/oot.js`.
 - `u` means micro (`uK`, `um`), and you can also type `µ`.
 - `450 degC` (or `450 °C`) is an absolute temperature and is converted to 723.15 K before any arithmetic. Use K for temperature differences.
 - `[1, 2, 3]` is a column vector. Its transpose (`v'`, `transpose(v)`, `dagger(v)`) is a 1×3 row.
+- Indexing with `[ ]` starts at 0, like Python: `A[0]` is the first column, `A[[0]]` the first row, `A[i, j]` row i column j.
 
 ## Adding your own equations
 

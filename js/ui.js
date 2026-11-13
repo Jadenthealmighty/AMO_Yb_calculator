@@ -1157,12 +1157,12 @@
 
     var obox = el('div', 'box'); obox.appendChild(el('h4', null, 'Operations on the named matrix (insert a line)'));
     var orow = el('div', 'btn-row');
-    [['eig', 'eig(M)'], ['eigvals', 'eigvals(M)'], ['eigvecs', 'eigvecs(M)'], ['det', 'det(M)'], ['inv', 'inv(M)'], ['trace', 'trace(M)'], ['transpose', 'transpose(M)'],
+    [['eig', 'eig(M)'], ['diagonalize', 'diagonalize(M)'], ['eigvals', 'eigvals(M)'], ['eigvecs', 'eigvecs(M)'], ['det', 'det(M)'], ['inv', 'inv(M)'], ['trace', 'trace(M)'], ['transpose', 'transpose(M)'],
       ['dagger', 'dagger(M)'], ['M²', 'M^2'], ['M·M', 'M * M'], ['expm', 'expm(M)'], ['expm(-iMt)', 'evolve(M, 1)'], ['norm', 'norm(M)'], ['rank / size', 'size(M)'], ['M ⊗ M', 'kron(M, M)'], ['M·v', 'M * [1, 0]']]
       .forEach(function (o) { var b = el('button', 'btn', o[0]); b.addEventListener('click', function () { var n = $('#mx-name').value.trim() || 'M'; insertLines([o[1].replace(/\bM\b/g, n)]); }); orow.appendChild(b); });
     obox.appendChild(orow);
     var cheat = el('div', 'hint'); cheat.style.marginTop = '10px';
-    cheat.innerHTML = 'Syntax: <code>[[1, 2], [3, 4]]</code> (rows) · <code>[1, 2, 3]</code> column vector · <code>A * B</code> matrix product · <code>A .* B</code> elementwise · <code>A\'</code> transpose (a vector becomes a row) · <code>dagger(A)</code> conjugate transpose · <code>A[1, 2]</code> element (1-based) · <code>kron(A, B)</code> / <code>tensor(A, B, C)</code> · <code>comm(A, B)</code> · <code>lusolve(A, b)</code> solves Ax = b · eigenvectors are normalized columns with a real, positive largest component.';
+    cheat.innerHTML = 'Syntax: <code>[[1, 2], [3, 4]]</code> (rows) · <code>[1, 2, 3]</code> column vector · <code>A * B</code> matrix product · <code>A .* B</code> elementwise · <code>A\'</code> transpose (a vector becomes a row) · <code>dagger(A)</code> conjugate transpose · <code>A[i, j]</code> element, <code>A[0]</code> first column, <code>A[[0]]</code> first row (0-based; <code>-1</code> = last, <code>0:2</code> = slice) · <code>diagonalize(A)</code> gives A = P D P⁻¹ · <code>magnitude(v)</code> length · <code>kron(A, B)</code> / <code>tensor(A, B, C)</code> · <code>comm(A, B)</code> · <code>lusolve(A, b)</code> solves Ax = b · eigenvectors are normalized columns with a real, positive largest component.';
     obox.appendChild(cheat);
     root.appendChild(obox);
 

@@ -21,6 +21,7 @@
   P.createEngine = function (mathjs, options) {
     options = options || {};
     var math = mathjs.create(mathjs.all, {});
+    var mathRaw = mathjs.create(mathjs.all, {});      // unpatched copy (the row-vector multiply below confuses math.eigs)
     var Unit = math.Unit;
     Unit.setUnitSystem('si');
 
@@ -140,6 +141,230 @@
       return { values: vals, V: V };
     }
 
+    // ---- magnitude, diagonalize -----------------------------------------------------------
+    function magnitude(v) {
+      if (!(Array.isArray(v) || math.isMatrix(v))) return math.abs(v);
+      var acc = null;
+      flat(v).forEach(function (x) {
+        if (typeof x === 'number' && x === 0) return;                 // a plain 0 next to united entries
+        var a = math.abs(x), sq = math.multiply(a, a);
+        acc = acc === null ? sq : math.add(acc, sq);
+      });
+      if (acc === null) return 0;
+      var r = math.sqrt(acc), first = flat(v).filter(function (x) { return math.isUnit(x); })[0];
+      if (first && math.isUnit(r)) { try { r = math.to(r, first.formatUnits()); } catch (e) { /* keep SI */ } }
+      return r;
+    }
+    // Hermitian eigen-decomposition by complex Jacobi rotations (entries [re, im]); accurate to round-off
+    function eighJacobi(H) {
+      var n = H.length, A = H.map(function (r) { return r.map(function (z) { return [z[0], z[1]]; }); }), V = [], i, j, k;
+      for (i = 0; i < n; i++) { V.push([]); for (j = 0; j < n; j++) V[i].push([i === j ? 1 : 0, 0]); }
+      var scale = 0;
+      for (i = 0; i < n; i++) for (j = 0; j < n; j++) scale = Math.max(scale, Math.hypot(A[i][j][0], A[i][j][1]));
+      for (var sweep = 0; sweep < 100; sweep++) {
+        var off = 0;
+        for (i = 0; i < n; i++) for (j = i + 1; j < n; j++) off = Math.max(off, Math.hypot(A[i][j][0], A[i][j][1]));
+        if (off <= 1e-16 * scale || off === 0) break;
+        for (var p = 0; p < n; p++) for (var q = p + 1; q < n; q++) {
+          var b = Math.hypot(A[p][q][0], A[p][q][1]);
+          if (b <= 1e-300) continue;
+          var cph = A[p][q][0] / b, sph = A[p][q][1] / b;
+          var th = 0.5 * Math.atan2(2 * b, A[q][q][0] - A[p][p][0]), c = Math.cos(th), s = Math.sin(th);
+          var Jpq = [s * cph, s * sph], Jqp = [-s * cph, s * sph], cJpq = [Jpq[0], -Jpq[1]], cJqp = [Jqp[0], -Jqp[1]];
+          for (k = 0; k < n; k++) {
+            var akp = A[k][p], akq = A[k][q], vkp = V[k][p], vkq = V[k][q];
+            A[k][p] = [c * akp[0] + akq[0] * Jqp[0] - akq[1] * Jqp[1], c * akp[1] + akq[0] * Jqp[1] + akq[1] * Jqp[0]];
+            A[k][q] = [akp[0] * Jpq[0] - akp[1] * Jpq[1] + c * akq[0], akp[0] * Jpq[1] + akp[1] * Jpq[0] + c * akq[1]];
+            V[k][p] = [c * vkp[0] + vkq[0] * Jqp[0] - vkq[1] * Jqp[1], c * vkp[1] + vkq[0] * Jqp[1] + vkq[1] * Jqp[0]];
+            V[k][q] = [vkp[0] * Jpq[0] - vkp[1] * Jpq[1] + c * vkq[0], vkp[0] * Jpq[1] + vkp[1] * Jpq[0] + c * vkq[1]];
+          }
+          for (k = 0; k < n; k++) {
+            var apk = A[p][k], aqk = A[q][k];
+            A[p][k] = [c * apk[0] + cJqp[0] * aqk[0] - cJqp[1] * aqk[1], c * apk[1] + cJqp[0] * aqk[1] + cJqp[1] * aqk[0]];
+            A[q][k] = [cJpq[0] * apk[0] - cJpq[1] * apk[1] + c * aqk[0], cJpq[0] * apk[1] + cJpq[1] * apk[0] + c * aqk[1]];
+          }
+          A[p][q] = [0, 0]; A[q][p] = [0, 0];
+        }
+      }
+      var idx = []; for (i = 0; i < n; i++) idx.push(i);
+      idx.sort(function (a, b) { return A[a][a][0] - A[b][b][0]; });
+      return { E: idx.map(function (k) { return A[k][k][0]; }), U: V.map(function (row) { return idx.map(function (k) { return row[k]; }); }) };
+    }
+    function cplx(z) { return math.isComplex(z) ? [z.re, z.im] : [Number(z), 0]; }
+    function toC(z, tol) { var re = Math.abs(z[0]) < tol ? 0 : z[0], im = Math.abs(z[1]) < tol ? 0 : z[1]; return im === 0 ? re : math.complex(re, im); }
+    function diagonalize(M) {
+      var A = toArray(M);
+      if (!Array.isArray(A) || !Array.isArray(A[0]) || A.length !== A[0].length) throw new Error('diagonalize(M): M must be a square matrix, e.g. [[0, 1], [1, 0]]');
+      var n = A.length, unit = null;
+      flat(A).forEach(function (x) { if (!unit && math.isUnit(x) && x.value !== 0) unit = x.formatUnits(); });
+      var Z = A.map(function (row) {
+        return row.map(function (x) {
+          if (math.isUnit(x)) { if (!unit) return [0, 0]; try { return cplx(x.toNumeric(unit)); } catch (e) { throw new Error('diagonalize(M): every entry needs the same kind of unit'); } }
+          if (unit && !(typeof x === 'number' && x === 0)) throw new Error('diagonalize(M): mix of entries with and without units');
+          return cplx(x);
+        });
+      });
+      var scale = 0; Z.forEach(function (r) { r.forEach(function (z) { scale = Math.max(scale, Math.hypot(z[0], z[1])); }); });
+      if (scale === 0) scale = 1;
+      var herm = true;
+      for (var i = 0; i < n && herm; i++) for (var j = 0; j < n; j++) if (Math.hypot(Z[i][j][0] - Z[j][i][0], Z[i][j][1] + Z[j][i][1]) > 1e-12 * scale) { herm = false; break; }
+      var vals, P, Pinv, tol = 1e-13 * scale;
+      if (herm) {
+        var r = eighJacobi(Z);
+        vals = r.E.map(function (e) { return Math.abs(e) < tol ? 0 : e; });
+        var cols = [];
+        for (var c = 0; c < n; c++) cols.push(normalizePhase(r.U.map(function (row) { return toC(row[c], 1e-14); })));
+        P = []; for (i = 0; i < n; i++) P.push(cols.map(function (col) { return col[i]; }));
+        Pinv = math.ctranspose(math.matrix(P)).valueOf();
+      } else {
+        var Mn = Z.map(function (row) { return row.map(function (z) { return z[1] === 0 ? z[0] : math.complex(z[0], z[1]); }); }), ev;
+        try { ev = mathRaw.eigs(Mn); } catch (e) { throw new Error('diagonalize(M): ' + (/defective|eigenvector/i.test(e.message) ? 'M is not diagonalizable (a repeated eigenvalue without a full set of eigenvectors)' : e.message)); }
+        var pairs = (ev.eigenvectors || []).map(function (x) {
+          var v = flat(x.vector), nv = math.norm(v);
+          return { val: cplx(x.value), vec: normalizePhase(v.map(function (q) { return math.divide(q, nv); })) };
+        });
+        if (pairs.length !== n) throw new Error('diagonalize(M): M is not diagonalizable (a repeated eigenvalue without a full set of eigenvectors)');
+        pairs.sort(function (a, b) { return (a.val[0] - b.val[0]) || (a.val[1] - b.val[1]); });
+        vals = pairs.map(function (p) { return toC(p.val, tol); });
+        P = []; for (i = 0; i < n; i++) P.push(pairs.map(function (p) { return cleanScalar(p.vec[i]); }));
+        try { Pinv = math.inv(math.matrix(P)).valueOf(); } catch (e) { Pinv = null; }
+        var cond = Pinv ? math.norm(math.matrix(P), 'fro') * math.norm(math.matrix(Pinv), 'fro') : Infinity;
+        if (!(cond < 1e10)) throw new Error('diagonalize(M): M is not diagonalizable (a repeated eigenvalue without a full set of eigenvectors)');
+        Pinv = Pinv.map(function (row) { return row.map(function (q) { return cleanScalar(math.isComplex(q) ? toC([q.re, q.im], 1e-14) : (Math.abs(q) < 1e-14 ? 0 : q)); }); });
+      }
+      // check: max |P D P⁻¹ − M| / max |M|
+      var Dn = math.diag(vals), R = math.subtract(math.multiply(math.multiply(math.matrix(P), Dn), math.matrix(Pinv)),
+        math.matrix(Z.map(function (row) { return row.map(function (z) { return z[1] === 0 ? z[0] : math.complex(z[0], z[1]); }); })));
+      var err = 0; flat(R).forEach(function (x) { err = Math.max(err, math.abs(x)); });
+      function withUnit(x) { return unit ? math.unit(x, unit) : x; }
+      var D = [];
+      for (i = 0; i < n; i++) { D.push([]); for (j = 0; j < n; j++) D[i].push(withUnit(i === j ? vals[i] : 0)); }
+      var out = { D: math.matrix(D), P: math.matrix(P), Pinv: math.matrix(Pinv), values: math.matrix(vals.map(withUnit)), unitary: herm, error: err / scale };
+      Object.defineProperty(out, '__report', { enumerable: false, value: [['D', 'D (eigenvalues)'], ['P', 'P (eigenvectors as columns)'],
+        ['Pinv', herm ? 'P⁻¹ = P† (M is Hermitian)' : 'P⁻¹'], ['error', 'max |P D P⁻¹ − M| / max |M|']] });
+      return out;
+    }
+
+    // ---- 0-based indexing -------------------------------------------------------------------
+    //   v[0] first element · A[0] first column · A[[0]] first row · A[i, j] element (row i, column j)
+    //   negative indices count from the end · a:b is a Python slice (b excluded) · : is everything · end is the last index
+    // Bracket indexing is rewritten to __idx(obj, mode, spec…) / __idxset(…) before compiling.
+    function hasIndex(node) {
+      var f = false;
+      node.traverse(function (n) { if ((n.type === 'AccessorNode' || n.type === 'AssignmentNode') && n.index && !n.index.dotNotation) f = true; });
+      return f;
+    }
+    function callNode(name, args) { return new math.FunctionNode(new math.SymbolNode(name), args); }
+    function withIndexing(node) {
+      if (!hasIndex(node)) return node;
+      return node.transform(function (n) {
+        if (n.type === 'AccessorNode' && n.index && !n.index.dotNotation) {
+          var obj = withIndexing(n.object);
+          return callNode('__idx', [obj].concat(indexArgs(n.index.dimensions, obj)));
+        }
+        if (n.type === 'AssignmentNode' && n.index && !n.index.dotNotation) {
+          if (n.object.type !== 'SymbolNode') throw new Error('indexed assignment works on a plain variable, e.g. v[0] = 3');
+          var o = new math.SymbolNode(n.object.name);
+          return new math.AssignmentNode(new math.SymbolNode(n.object.name), callNode('__idxset', [o, withIndexing(n.value)].concat(indexArgs(n.index.dimensions, o))));
+        }
+        return n;
+      });
+    }
+    function indexArgs(dims, obj) {
+      var mode = dims.length === 1 ? (dims[0].type === 'ArrayNode' ? 'row' : 'one') : 'two', list = dims;
+      if (mode === 'row') list = dims[0].items.length === 1 ? [dims[0].items[0]] : [dims[0]];
+      return [new math.ConstantNode(mode)].concat(list.map(function (d, k) { return indexSpec(d, obj, mode === 'two' ? 'd' + k : mode); }));
+    }
+    function indexSpec(d, obj, kind) {
+      function fix(x) {
+        return withIndexing(x.transform(function (q) { return q.type === 'SymbolNode' && q.name === 'end' ? callNode('__end', [obj, new math.ConstantNode(kind)]) : q; }));
+      }
+      if (d.type === 'RangeNode') {
+        if (!d.step && d.start.type === 'ConstantNode' && d.start.value === 1 && d.end.type === 'SymbolNode' && d.end.name === 'end') return callNode('__slice', []);
+        // math.js reads a:b:c as start:step:end; here it means start:stop:step like Python
+        return callNode('__slice', d.step ? [fix(d.start), fix(d.step), fix(d.end)] : [fix(d.start), fix(d.end)]);
+      }
+      return fix(d);
+    }
+    function shapeInfo(a) {
+      if (!Array.isArray(a)) return null;
+      if (!Array.isArray(a[0])) return { nd: 1, n: a.length };
+      if (Array.isArray(a[0][0])) throw new Error('indexing works on vectors and 2-D matrices');
+      return { nd: 2, r: a.length, c: a[0].length };
+    }
+    function idxList(spec, n, what) {
+      function one(i) {
+        if (math.isUnit(i) || typeof i !== 'number' || !isFinite(i) || Math.round(i) !== i) throw new Error('index must be a whole number (got ' + (math.isUnit(i) ? i.toString() : i) + ')');
+        var j = i < 0 ? i + n : i;
+        if (j < 0 || j >= n) throw new Error('index ' + i + ' is out of range for ' + what + ' (0 … ' + (n - 1) + ', or −1 … −' + n + ' from the end)');
+        return j;
+      }
+      if (spec && spec.__slice) {
+        if (spec.all) { var all = []; for (var a = 0; a < n; a++) all.push(a); return all; }
+        var st = spec.step === undefined ? 1 : spec.step;
+        if (!st || Math.round(st) !== st) throw new Error('slice step must be a non-zero whole number');
+        function b(x, d) { if (x === undefined) return d; if (x < 0) x += n; return Math.max(st > 0 ? 0 : -1, Math.min(st > 0 ? n : n - 1, x)); }
+        var s0 = b(spec.start, st > 0 ? 0 : n - 1), s1 = b(spec.stop, st > 0 ? n : -1), out = [];
+        for (var k = s0; st > 0 ? k < s1 : k > s1; k += st) out.push(k);
+        return out;
+      }
+      if (Array.isArray(spec) || math.isMatrix(spec)) return flat(spec).map(one);
+      return one(spec);
+    }
+    function idxPlan(a, mode, specs) {
+      var sh = shapeInfo(a);
+      if (!sh) throw new Error('only vectors and matrices can be indexed with [ ]');
+      if (sh.nd === 1) {
+        if (mode !== 'one') throw new Error(mode === 'row' ? 'v[[i]] picks rows of a matrix; for a vector write v[i]' : 'a vector takes one index, e.g. v[0]');
+        return { nd: 1, i: idxList(specs[0], sh.n, 'this vector') };
+      }
+      var ALL = { __slice: true, all: true }, rs, cs;
+      if (mode === 'one') {
+        if (sh.c === 1 && sh.r > 1) { rs = specs[0]; cs = 0; }
+        else if (sh.r === 1) { rs = 0; cs = specs[0]; }
+        else { rs = ALL; cs = specs[0]; }
+      } else if (mode === 'row') { rs = specs[0]; cs = ALL; }
+      else { if (specs.length !== 2) throw new Error('a matrix takes at most two indices, A[row, column]'); rs = specs[0]; cs = specs[1]; }
+      return { nd: 2, r: idxList(rs, sh.r, 'the rows'), c: idxList(cs, sh.c, mode === 'one' ? 'the columns (A[j] is column j; A[[i]] is row i)' : 'the columns') };
+    }
+    var indexHelpers = {
+      __slice: function (start, stop, step) { return { __slice: true, all: arguments.length === 0, start: start, stop: stop, step: step }; },
+      __end: function (obj, kind) {
+        var sh = shapeInfo(toArray(obj));
+        if (!sh) throw new Error('“end” only works inside [ ] of a vector or matrix');
+        if (sh.nd === 1) return sh.n - 1;
+        if (kind === 'row' || kind === 'd0') return sh.r - 1;
+        if (kind === 'one') return sh.c === 1 ? sh.r - 1 : sh.c - 1;
+        return sh.c - 1;
+      },
+      __idx: function (obj, mode) {
+        var specs = Array.prototype.slice.call(arguments, 2);
+        if (obj && typeof obj === 'object' && !Array.isArray(obj) && !math.isMatrix(obj) && !math.isUnit(obj) && typeof specs[0] === 'string') {
+          if (!Object.prototype.hasOwnProperty.call(obj, specs[0])) throw new Error('no entry “' + specs[0] + '”');
+          return obj[specs[0]];
+        }
+        var a = toArray(obj), p = idxPlan(a, mode, specs), wrap = math.isMatrix(obj) ? math.matrix : function (x) { return x; };
+        if (p.nd === 1) return typeof p.i === 'number' ? a[p.i] : wrap(p.i.map(function (i) { return a[i]; }));
+        var ri = typeof p.r === 'number', ci = typeof p.c === 'number';
+        if (ri && ci) return a[p.r][p.c];
+        if (ri) return wrap([p.c.map(function (j) { return a[p.r][j]; })]);                 // 1×k row
+        if (ci) return wrap(p.r.map(function (i) { return a[i][p.c]; }));                   // column vector
+        return wrap(p.r.map(function (i) { return p.c.map(function (j) { return a[i][j]; }); }));
+      },
+      __idxset: function (obj, value, mode) {
+        if (obj === undefined) throw new Error('define the vector or matrix before setting entries of it');
+        var specs = Array.prototype.slice.call(arguments, 3), a = toArray(obj);
+        a = math.clone(a);
+        var p = idxPlan(a, mode, specs), targets = [];
+        if (p.nd === 1) (typeof p.i === 'number' ? [p.i] : p.i).forEach(function (i) { targets.push([i]); });
+        else (typeof p.r === 'number' ? [p.r] : p.r).forEach(function (i) { (typeof p.c === 'number' ? [p.c] : p.c).forEach(function (j) { targets.push([i, j]); }); });
+        var vals = (Array.isArray(value) || math.isMatrix(value)) ? flat(value) : null;
+        if (vals && vals.length !== targets.length) throw new Error('this selects ' + targets.length + ' entries but the right-hand side has ' + vals.length);
+        targets.forEach(function (t, k) { var v = vals ? vals[k] : value; if (t.length === 1) a[t[0]] = v; else a[t[0]][t[1]] = v; });
+        return math.isMatrix(obj) ? math.matrix(a) : a;
+      }
+    };
+
     function isZero(x) { return (typeof x === 'number' && x === 0) || (math.isComplex(x) && x.re === 0 && x.im === 0); }
     var helpers = {
       ln: function (x) { return math.log(x); },
@@ -148,6 +373,8 @@
       eigvals: function (M) { return math.matrix(eigFull(M).values); },
       eigvecs: function (M) { return math.matrix(eigFull(M).V); },
       eig: function (M) { var r = eigFull(M); return { __eig: true, values: r.values, V: r.V }; },
+      diagonalize: diagonalize,
+      magnitude: magnitude,
       // plot(f, g, …, xmin, xmax, xlabel="…", ylabel="…", title="…", legend="a, b", logy=true, …)
       // name=value arguments arrive here as __opt objects (see withPlotOptions below).
       plot: function () {
@@ -233,6 +460,8 @@
       eigvals: 'eigvals(M) — eigenvalues as a vector',
       eigvecs: 'eigvecs(M) — normalized eigenvectors as columns',
       eig: 'eig(M) — eigenvalues + eigenvector matrix, nicely displayed',
+      diagonalize: 'diagonalize(M) — M = P D P⁻¹: D, P and P⁻¹ (exact Jacobi method for Hermitian M)',
+      magnitude: 'magnitude(v) — length √(Σ|vᵢ|²) of a vector, list or matrix (units kept)',
       plot: 'plot(f, g, …, xmin, xmax, xlabel="…", ylabel="…", title="…") — overlay one or more curves',
       plot2d: 'plot2d(f, xmin, xmax, ymin, ymax) — heat map of f(x, y)',
       points: 'points(xs, ys) — measured data to overlay on a plot',
@@ -242,6 +471,7 @@
     Object.keys(helperDocs).forEach(function (k) { meta[k] = { desc: helperDocs[k], kind: 'fn' }; });
     base.delete('__opt');
     var hidden = new Map([['__opt', helpers.__opt]]);     // reachable by compiled code, not listed anywhere
+    Object.keys(indexHelpers).forEach(function (k) { base.set(k, indexHelpers[k]); });   // in base (not listed) so custom equations reach them too
 
     function preprocessLib(s) { return preprocess(s, base); }
 
@@ -328,13 +558,13 @@
           if (n.type === 'SymbolNode' && h.params.indexOf(n.name) < 0 && n.name !== h.name && !base.has(n.name) && !(n.name in math) && !isUnitName(n.name) && unknown.indexOf(n.name) < 0) unknown.push(n.name);
         });
         if (unknown.length) throw new Error('Unknown name' + (unknown.length > 1 ? 's' : '') + ' in the formula: ' + unknown.join(', ') + ' — add ' + (unknown.length > 1 ? 'them' : 'it') + ' as an input or define a constant');
-        node.compile().evaluate(scope);
+        withIndexing(node).compile().evaluate(scope);
         try { out.tex = nodeTex(node, scope); } catch (e) { out.tex = null; }
       } catch (err) { out.error = cleanError(err); return out; }
       h.params.forEach(function (p) { if (HIDES[p]) out.warnings.push('input “' + p + '” hides ' + HIDES[p] + ' inside this formula'); });
       if (example && example.trim()) {
         try {
-          var v = math.evaluate(preprocess(splitComment(example).expr, scope), scope);
+          var v = withIndexing(math.parse(preprocess(splitComment(example).expr, scope))).compile().evaluate(scope);
           if (typeof v === 'function') out.exampleText = 'function'; else { var f = fmtValue(v, 6); out.exampleText = f.text; out.exampleTex = f.tex; }
         } catch (err2) { out.exampleError = cleanError(err2); }
       }
@@ -344,7 +574,7 @@
     function addCustomEquation(e) {
       var chk = checkEquation(e.def, null, e._replaces);
       if (!chk.ok) throw new Error(chk.error);
-      math.evaluate(preprocessLib(splitComment(e.def).expr), base);
+      withIndexing(math.parse(preprocessLib(splitComment(e.def).expr))).compile().evaluate(base);
       var entry = Object.assign({}, e, { id: chk.name, params: chk.params, sig: chk.name + '(' + chk.params.join(', ') + ')', custom: true, autoTex: chk.tex });
       delete entry._replaces;
       equations.push(entry);
@@ -771,6 +1001,19 @@
         if (node.type === 'AssignmentNode' && node.object && node.object.type === 'SymbolNode' && !node.index) {
           return '{' + genericSymbolTex(node.object.name) + '}=' + node.value.toTex(opts);
         }
+        if ((node.type === 'AccessorNode' || (node.type === 'AssignmentNode' && node.object)) && node.index && !node.index.dotNotation) {
+          // A[0], A[[0]], A[i, j], v[1:3] — shown as typed (0-based), not as math.js subscripts
+          var dimTex = function (d) {
+            if (d.type === 'RangeNode') {
+              if (!d.step && d.start.type === 'ConstantNode' && d.start.value === 1 && d.end.type === 'SymbolNode' && d.end.name === 'end') return ':';
+              return [d.start, d.step, d.end].filter(Boolean).map(function (q) { return q.toTex(opts); }).join('{:}');
+            }
+            if (d.type === 'ArrayNode') return '\\left[' + d.items.map(dimTex).join(',\\,') + '\\right]';
+            return d.toTex(opts);
+          };
+          var lhs = node.object.toTex(opts) + '\\left[' + node.index.dimensions.map(dimTex).join(',\\,') + '\\right]';
+          return node.type === 'AssignmentNode' ? lhs + '=' + node.value.toTex(opts) : lhs;
+        }
         if (node.type === 'AccessorNode' && node.object && node.object.type === 'SymbolNode' && node.index && node.index.dotNotation) {
           var prop = node.index.getObjectProperty();
           var t = (node.object.name === 'Yb' && ybTex[prop]) ? ybTex[prop] : genericSymbolTex(prop);
@@ -815,7 +1058,7 @@
       var hit = parseCache.get(s);
       if (hit) return hit;
       var node = math.parse(s);
-      var entry = { node: node, code: withPlotOptions(node).compile() };
+      var entry = { node: node, code: withIndexing(withPlotOptions(node)).compile() };
       if (parseCache.size > 2000) parseCache.clear();
       parseCache.set(s, entry);
       return entry;
@@ -984,6 +1227,8 @@
       inUnits: { params: ['x', 'unit'], args: { x: 'value', unit: 'unit in quotes, e.g. "mW/cm^2"' }, title: 'Convert (same as x to unit)' },
       eig: { params: ['M'], args: { M: 'square matrix' }, title: 'Eigenvalues and normalized eigenvectors' },
       eigvals: { params: ['M'], args: { M: 'square matrix' }, title: 'Eigenvalues as a vector' },
+      diagonalize: { params: ['M'], args: { M: 'square matrix (units allowed, all of one kind)' }, title: 'M = P D P⁻¹', returns: 'a table; take d.D, d.P, d.Pinv, d.values' },
+      magnitude: { params: ['v'], args: { v: 'vector, list or matrix (complex and units allowed)' }, title: 'Length √(Σ|vᵢ|²)' },
       eigvecs: { params: ['M'], args: { M: 'square matrix' }, title: 'Normalized eigenvectors as columns' },
       plot: { params: ['f', 'g, …', 'xmin', 'xmax', 'options…'], variadic: true, title: 'Line plot; list several functions to overlay them',
         args: { f: 'a function of one variable, e.g. f(x) = x^2', 'g, …': 'more functions and/or points(xs, ys) to overlay (optional)', xmin: 'start of the x range (units welcome)', xmax: 'end of the x range',
