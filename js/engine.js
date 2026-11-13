@@ -438,10 +438,14 @@
       }
     };
     var sliderSeen = null;
-    var PLOT_OPTS = ['xlabel', 'ylabel', 'y2label', 'title', 'legend', 'logx', 'logy', 'log', 'zero', 'normalize', 'ymin', 'ymax', 'fine', 'lines'];
+    var PLOT_OPTS = ['xlabel', 'ylabel', 'y2label', 'title', 'legend', 'logx', 'logy', 'log', 'zero', 'normalize', 'ymin', 'ymax', 'fine', 'lines', 'width', 'height'];
     function setPlotOpt(opts, key, value) {
       if (PLOT_OPTS.indexOf(key) < 0) throw new Error('plot: unknown option “' + key + '” (options: ' + PLOT_OPTS.join(', ') + ')');
-      if (key === 'legend') {
+      if (key === 'width' || key === 'height') {          // plot size in screen pixels (set by dragging the plot's corner)
+        var px = math.isUnit(value) ? NaN : Number(value);
+        if (!(px > 0)) throw new Error('plot: ' + key + ' is in pixels, e.g. ' + key + '=400');
+        opts[key] = px;
+      } else if (key === 'legend') {
         var names = typeof value === 'string' ? value.split(',') : flat(value);
         opts.legend = (Array.isArray(names) ? names : [names]).map(function (s) { return String(s).trim(); });
       } else if (typeof value === 'boolean' || value === 0 || value === 1) {
@@ -1232,9 +1236,9 @@
       eigvecs: { params: ['M'], args: { M: 'square matrix' }, title: 'Normalized eigenvectors as columns' },
       plot: { params: ['f', 'g, …', 'xmin', 'xmax', 'options…'], variadic: true, title: 'Line plot; list several functions to overlay them',
         args: { f: 'a function of one variable, e.g. f(x) = x^2', 'g, …': 'more functions and/or points(xs, ys) to overlay (optional)', xmin: 'start of the x range (units welcome)', xmax: 'end of the x range',
-          'options…': 'xlabel="…", ylabel="…", y2label="…", title="…", legend="a, b", logx=true, logy=true, zero=true, normalize=true, ymin=…, ymax=…' } },
+          'options…': 'xlabel="…", ylabel="…", y2label="…", title="…", legend="a, b", logx=true, logy=true, zero=true, normalize=true, ymin=…, ymax=…, width=… and height=… (pixels; or drag the corner)' } },
       plot2d: { params: ['f', 'xmin', 'xmax', 'ymin', 'ymax', 'options…'], variadic: true, title: 'Heat map of f(x, y)',
-        args: { f: 'a function of two variables', xmin: 'x range start', xmax: 'x range end', ymin: 'y range start', ymax: 'y range end', 'options…': 'xlabel="…", ylabel="…", title="…", log=true, fine=true' } },
+        args: { f: 'a function of two variables', xmin: 'x range start', xmax: 'x range end', ymin: 'y range start', ymax: 'y range end', 'options…': 'xlabel="…", ylabel="…", title="…", log=true, fine=true, width=…, height=… (pixels; or drag the corner)' } },
       points: { params: ['xs', 'ys'], args: { xs: 'list of x values, e.g. [1, 2, 3] MHz', ys: 'list of y values (same length)' }, title: 'Data points to overlay on a plot', returns: 'use inside plot(…)' },
       heatmap: { params: ['M', 'xmin', 'xmax', 'ymin', 'ymax'], args: { M: '2-D array, e.g. a column of an uploaded .npy file', xmin: 'x of the left edge (optional — give all four or none)', xmax: 'x of the right edge', ymin: 'y of row 1 (bottom)', ymax: 'y of the last row' }, title: 'Colour map of a 2-D array; takes title=, xlabel=, ylabel=, log=true' },
       slider: { params: ['value', 'min', 'max', 'step'], args: { value: 'current value (rewritten as you drag)', min: 'left end', max: 'right end', step: 'step size (optional)' }, title: 'Draggable slider — use as  a = slider(2 mm, 0.5 mm, 5 mm)' }

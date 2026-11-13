@@ -368,7 +368,7 @@
     if (r.kind === 'plot') {
       R.plot.classList.add('on');
       var key = sheet().lines.slice(0, i + 1).join('\n') + '|' + state.settings.angle + '|' + Math.round(R.plot.clientWidth / 20);
-      if (key !== R.plotKey) { R.plotKey = key; R.plotErr = P.renderPlot(R.plotCanvas, r.plot, engine); }
+      if (key !== R.plotKey) { R.plotKey = key; R.plotErr = P.renderPlot(R.plotCanvas, r.plot, engine); if (!R.plotErr) attachResize(R); }
       updatePlotBar(R, r.plot);
     } else if (R.plotKey !== null) {
       R.plot.classList.remove('on'); R.plotCanvas.innerHTML = ''; R.plotKey = null; R.plotErr = null;
@@ -440,7 +440,9 @@
       }
       out.push(a);
     });
-    if (typeof value === 'boolean') { if (value) out.push(key + '=true'); }
+    if (value === null) { /* option removed */ }
+    else if (typeof value === 'number') out.push(key + '=' + value);
+    else if (typeof value === 'boolean') { if (value) out.push(key + '=true'); }
     else { var v = String(value).replace(/["\\#]/g, '').replace(/^\s+/, ''); if (v.trim()) out.push(key + '="' + v + '"'); }
     return src.slice(0, call.open + 1) + out.join(', ') + src.slice(call.close);
   }
@@ -453,6 +455,41 @@
   function setRowSource(R, text) {
     var i = idx(R); if (i < 0 || text === R.ta.value) return;
     setRowText(i, text); scheduleEval(); save();
+  }
+
+  // ---------- plot resizing: drag the bottom-right corner (writes width=/height= into the line) ----------
+  function attachResize(R) {
+    var wrap = R.plotCanvas.querySelector('.plot-wrap'), cv = wrap && wrap.querySelector('canvas');
+    if (!cv) return;
+    var grip = el('div', 'plot-resize'); grip.title = 'Drag to resize · double-click for the default size';
+    var lbl = el('div', 'plot-size');
+    wrap.appendChild(grip); wrap.appendChild(lbl);
+    grip.addEventListener('pointerdown', function (e) {
+      if (e.button !== undefined && e.button !== 0) return;
+      e.preventDefault(); e.stopPropagation();
+      try { grip.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+      var x0 = e.clientX, y0 = e.clientY, w0 = cv.offsetWidth, h0 = cv.offsetHeight, full = Math.max(280, R.plotCanvas.clientWidth), w = w0, h = h0;
+      wrap.classList.add('resizing');
+      function show() { lbl.textContent = (w >= full - 2 ? 'full width' : w + ' px') + ' × ' + h + ' px'; }
+      show();
+      function move(ev) {
+        w = Math.round(Math.max(280, Math.min(full, w0 + ev.clientX - x0)));
+        h = Math.round(Math.max(160, Math.min(1600, h0 + ev.clientY - y0)));
+        cv.style.width = w + 'px'; cv.style.height = h + 'px'; show();
+      }
+      function up() {
+        grip.removeEventListener('pointermove', move); grip.removeEventListener('pointerup', up); grip.removeEventListener('pointercancel', up);
+        wrap.classList.remove('resizing');
+        if (Math.abs(w - w0) < 2 && Math.abs(h - h0) < 2) return;
+        var src = rewritePlotOption(R.ta.value, 'width', w >= full - 2 ? null : w);
+        setRowSource(R, rewritePlotOption(src, 'height', h));
+      }
+      grip.addEventListener('pointermove', move); grip.addEventListener('pointerup', up); grip.addEventListener('pointercancel', up);
+    });
+    grip.addEventListener('dblclick', function (e) {
+      e.preventDefault();
+      setRowSource(R, rewritePlotOption(rewritePlotOption(R.ta.value, 'width', null), 'height', null));
+    });
   }
 
   // ---------- plot toolbar: title, axis labels, legend, log axes, PNG ----------
