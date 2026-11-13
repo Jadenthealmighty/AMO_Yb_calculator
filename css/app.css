@@ -67,6 +67,12 @@ body.panel-hidden #panel, body.panel-hidden #splitter { display: none; }
 .row { display: flex; align-items: stretch; border-bottom: 1px solid var(--line); position: relative; min-height: 46px; }
 .row .gutter { flex: 0 0 38px; background: var(--gutter); color: var(--gutter-fg); font-size: 11px; display: flex; justify-content: center; padding-top: 14px; user-select: none; border-right: 1px solid var(--line); }
 .row.focused .gutter { background: var(--accent); color: var(--accent-fg); }
+.row .gutter { cursor: grab; touch-action: none; position: relative; }
+.row .gutter::after { content: "⋮⋮"; position: absolute; left: 0; right: 0; top: 32px; text-align: center; letter-spacing: -2px; font-size: 12px; opacity: 0; transition: opacity .12s; }
+.row:hover .gutter::after, .row.dragging .gutter::after { opacity: .7; }
+.row.dragging { z-index: 6; box-shadow: 0 6px 22px rgba(0, 0, 0, .18); background: var(--bg); }
+.row.dragging .gutter { cursor: grabbing; background: var(--accent); color: var(--accent-fg); }
+body.row-dragging, body.row-dragging * { cursor: grabbing !important; user-select: none !important; }
 .row.has-error .gutter .num::after { content: " ⚠"; color: var(--err); }
 .row.focused.has-error .gutter .num::after { color: var(--accent-fg); }
 .row .body { flex: 1 1 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 7px 40px 7px 12px; min-width: 0; }

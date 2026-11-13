@@ -167,7 +167,7 @@
   function makeRow(text) {
     var R = {};
     R.el = el('div', 'row');
-    var gut = el('div', 'gutter'); R.num = el('span', 'num'); gut.appendChild(R.num);
+    var gut = R.gut = el('div', 'gutter'); R.num = el('span', 'num'); gut.appendChild(R.num);
     var body = el('div', 'body');
     var expr = el('div', 'expr');
     R.view = el('div', 'view');
@@ -238,6 +238,59 @@
     });
     R.result.addEventListener('click', function () { if (R.copyText) copy(R.copyText); });
     R.del.addEventListener('click', function () { deleteRow(idx(R)); });
+    wireDrag(R, R.gut);
+  }
+
+  // ---------- drag a line by its number (left gutter) to reorder, like Desmos ----------
+  var paneEl = $('#sheet-pane');
+  function wireDrag(R, gut) {
+    gut.title = 'Drag to move this line';
+    gut.addEventListener('pointerdown', function (e) {
+      if (e.button !== undefined && e.button !== 0) return;
+      e.preventDefault();
+      // listen on the window: moving the row in the DOM would drop a pointer capture on the gutter
+      var y0 = e.clientY, from = idx(R), dragging = false, lastY = e.clientY, raf = null;
+      var focused = active >= 0 ? rows[active] : null;
+      function place(y) {
+        var i = idx(R), n = 0;
+        rows.forEach(function (Q) { if (Q === R) return; var b = Q.el.getBoundingClientRect(); if (b.top + b.height / 2 < y) n++; });
+        if (n === i) return;
+        rows.splice(i, 1); rows.splice(n, 0, R);
+        var L = sheet().lines, t = L.splice(i, 1)[0]; L.splice(n, 0, t);
+        rowsEl.insertBefore(R.el, rows[n + 1] ? rows[n + 1].el : null);
+        renumber();
+      }
+      function autoscroll() {                      // keep scrolling while the pointer sits near the top or bottom edge
+        raf = null; if (!dragging) return;
+        var b = paneEl.getBoundingClientRect(), d = 0;
+        if (lastY < b.top + 50) d = -Math.min(18, (b.top + 50 - lastY) / 2);
+        else if (lastY > b.bottom - 50) d = Math.min(18, (lastY - b.bottom + 50) / 2);
+        if (d) { paneEl.scrollTop += d; place(lastY); raf = requestAnimationFrame(autoscroll); }
+      }
+      function move(ev) {
+        lastY = ev.clientY;
+        if (!dragging) {
+          if (Math.abs(ev.clientY - y0) < 4) return;
+          dragging = true; R.el.classList.add('dragging'); document.body.classList.add('row-dragging');
+          AC.hide(); Sig.hide();
+        }
+        place(ev.clientY);
+        if (!raf) raf = requestAnimationFrame(autoscroll);
+      }
+      function up() {
+        window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up);
+        if (raf) cancelAnimationFrame(raf);
+        R.el.classList.remove('dragging'); document.body.classList.remove('row-dragging');
+        if (!dragging) { focusRow(idx(R), 'end'); return; }       // a plain click on the number focuses the line
+        if (idx(R) !== from) {
+          if (focused) active = idx(focused);
+          rows.forEach(function (Q, k) { Q.el.classList.toggle('focused', k === active); });
+          save(); scheduleEval();
+        }
+        dragging = false;
+      }
+      window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+    });
   }
 
   function setActive(i) {
@@ -282,6 +335,23 @@
     renumber(); save(); scheduleEval(); focusRow(j, R.ta.selectionStart);
   }
 
+  // Enter at the end of a line closes any ( [ { left open, in the right order: f(x, [1, 2 -> f(x, [1, 2])
+  // Text in "quotes" and after a # comment is ignored; a mismatched closer leaves the line alone.
+  function closeBrackets(src) {
+    var stack = [], inQ = false, cut = src.length, PAIR = { '(': ')', '[': ']', '{': '}' };
+    for (var k = 0; k < src.length; k++) {
+      var ch = src[k];
+      if (inQ) { if (ch === '"') inQ = false; continue; }
+      if (ch === '"') inQ = true;
+      else if (ch === '#') { cut = k; break; }
+      else if (PAIR[ch]) stack.push(PAIR[ch]);
+      else if (ch === ')' || ch === ']' || ch === '}') { if (stack.pop() !== ch) return src; }
+    }
+    if (inQ || !stack.length) return src;
+    var code = src.slice(0, cut), tail = src.slice(cut), m = /\s*$/.exec(code);
+    return code.slice(0, m.index) + stack.reverse().join('') + code.slice(m.index) + tail;
+  }
+
   function lineHeight(ta) { return parseFloat(getComputedStyle(ta).lineHeight) || 22; }
   function singleLine(ta) { return ta.value.indexOf('\n') < 0 && ta.scrollHeight < lineHeight(ta) * 1.9 + 8; }
 
@@ -300,6 +370,8 @@
       var v = ta.value, s = ta.selectionStart, en = ta.selectionEnd;
       if (s === 0 && en === 0 && v.length) { insertRow(i, '', false); focusRow(i + 1, 0); return; }
       if (en < v.length) { setRowText(i, v.slice(0, s)); insertRow(i + 1, v.slice(en), false); focusRow(i + 1, 'start'); return; }
+      var closed = closeBrackets(v);
+      if (closed !== v) { setRowText(i, closed); scheduleEval(); save(); }
       insertRow(i + 1, '', true);
       return;
     }

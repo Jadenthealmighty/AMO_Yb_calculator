@@ -60,6 +60,10 @@ which both systems already have.
 | `# note` | a text line; `x = 3  # comment` also works |
 | `ans`, `$3` | previous result; result of line 3 |
 
+**Editing lines.** Pressing Enter at the end of a line closes any `(`, `[` or `{` you left open
+(`plot(f, 0, [1, 2` becomes `plot(f, 0, [1, 2])`). Drag a line by its number on the left to move it up or down,
+as in Desmos (Alt + ↑/↓ does the same from the keyboard); a plain click on the number puts the cursor in that line.
+
 **Input hints.** While the cursor is inside a function's brackets, a small box lists the function's
 inputs with their descriptions and highlights the one you are typing. The autocomplete list shows each
 function's inputs too. `Esc` hides the box.
@@ -118,6 +122,7 @@ shift-beam scattering and heating, the modified Doppler temperature) and a port 
 | `M = mot_beams(1, -0.5)` | six 399 nm cooling beams (s per beam, Δc; optional waist and handedness) |
 | `oot_B(S, x, y, z)`, `oot_Bx` … `oot_Bmag` | B_eff in G at any point (static, as in the paper) |
 | `oot_B_dop(S, x, y, z, vx, vy, vz)`, `oot_shifts(…)` | B_eff and the three ¹P₁ light shifts with Doppler-shifted shift beams |
+| `oot_H(S, x, y, z)`, `oot_H(S, x, y, z, vx, vy, vz, "m")` | the full 3×3 ¹P₁ light-shift Hamiltonian H/h in MHz, in the \|x⟩,\|y⟩,\|z⟩ basis or (`"m"`) m = +1, 0, −1 |
 | `oot_accel(S, M, x, y, z, vx, vy, vz)`, `oot_ax/ay/az` | acceleration from the rate equations (no gravity) |
 | `oot_grad(S)`, `oot_freq(S, M)`, `oot_depth(S, M)` | gradient tensor, trap frequencies, depth |
 | `p = oot_point(S, x, y, z, vx, vy, vz, M)` | everything at one point as a table; then `p.B`, `p.a`, `p.zeeman`, … |

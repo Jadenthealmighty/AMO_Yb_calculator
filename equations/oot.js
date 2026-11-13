@@ -386,6 +386,37 @@
       var E = clean(eighC(shiftH(S._beams, pos(x, y, z), [vel(vx), vel(vy), vel(vz)])).E, 1e-9, EFLOOR);
       return math.matrix(E.map(function (e) { return U(e / (2 * Math.PI) / 1e6, 'MHz'); }));
     }
+    // full ¹P₁ light-shift Hamiltonian H/h in MHz; basis "xyz" (Cartesian, as in the simulation) or "m" (m = +1, 0, −1 along z)
+    var SQ = Math.SQRT1_2, TSPH = [[[-SQ, 0], [0, 0], [SQ, 0]], [[0, -SQ], [0, 0], [0, -SQ]], [[0, 0], [1, 0], [0, 0]]];   // columns |+1>, |0>, |−1>
+    function oot_H(S, x, y, z, vx, vy, vz, basis) {
+      needS(S, 'oot_H');
+      if (typeof vx === 'string') { basis = vx; vx = undefined; }
+      var v = vx === undefined ? null : [vel(vx), vel(vy), vel(vz)];
+      var H = shiftH(S._beams, pos(x, y, z), v), b = String(basis === undefined ? 'xyz' : basis).toLowerCase();
+      if (b === 'm' || b === 'spherical' || b === 'mj') {
+        var Hs = zeros3c();
+        for (var a = 0; a < 3; a++) for (var c = 0; c < 3; c++) {
+          var re = 0, im = 0;
+          for (var i = 0; i < 3; i++) for (var j = 0; j < 3; j++) {
+            var t1 = TSPH[i][a], h = H[i][j], t2 = TSPH[j][c];
+            var pr = t1[0] * h[0] + t1[1] * h[1], pi = t1[0] * h[1] - t1[1] * h[0];          // conj(T_ia) H_ij
+            re += pr * t2[0] - pi * t2[1]; im += pr * t2[1] + pi * t2[0];                    // … T_jc
+          }
+          Hs[a][c] = [re, im];
+        }
+        H = Hs;
+      } else if (b !== 'xyz' && b !== 'cartesian') throw new Error('oot_H: basis must be "xyz" or "m"');
+      var mx = 0; H.forEach(function (r) { r.forEach(function (q) { mx = Math.max(mx, Math.hypot(q[0], q[1])); }); });
+      var tiny = Math.max(1e-9 * mx, EFLOOR);
+      return math.matrix(H.map(function (r) {
+        return r.map(function (q) {
+          var re = Math.abs(q[0]) < tiny ? 0 : q[0] / (2 * Math.PI) / 1e6, im = Math.abs(q[1]) < tiny ? 0 : q[1] / (2 * Math.PI) / 1e6;
+          var u = im === 0 ? U(re, 'MHz') : math.multiply(math.complex(re, im), math.unit('MHz'));
+          u.fixPrefix = true;                                       // show every entry in MHz
+          return u;
+        });
+      }));
+    }
     function accel(S, M, x, y, z, vx, vy, vz, dop, fn) {
       needS(S, fn); needM(M, fn);
       return coolForce(S, M, pos(x, y, z), [vel(vx), vel(vy), vel(vz)], flag(dop, true)).a;
@@ -439,7 +470,7 @@
     }
     return { oot_beams: oot_beams, mot_beams: mot_beams, oot_B: oot_B, oot_Bx: oot_Bx, oot_By: oot_By, oot_Bz: oot_Bz, oot_Bmag: oot_Bmag,
       oot_I: oot_I, oot_grad: oot_grad, oot_B_dop: oot_B_dop, oot_shifts: oot_shifts, oot_accel: oot_accel, oot_ax: oot_ax, oot_ay: oot_ay,
-      oot_az: oot_az, oot_freq: oot_freq, oot_depth: oot_depth, oot_point: oot_point };
+      oot_az: oot_az, oot_freq: oot_freq, oot_depth: oot_depth, oot_point: oot_point, oot_H: oot_H };
   }
   var cache = null;
   function fn(name) { return function (ctx) { if (!cache || cache.ctx !== ctx) cache = { ctx: ctx, f: mk(ctx) }; return cache.f[name]; }; }
@@ -594,6 +625,12 @@
       notes: 'A moving atom sees each shift pass at its own Doppler-shifted detuning, so the two colours of a dual beam no longer cancel exactly and B_eff depends on v (what OOT_DOPPLER = 1 does in the sim).' },
     { name: 'OOT ¹P₁ sublevel light shifts', sig: 'oot_shifts(S, x, y, z, vx, vy, vz)', js: fn('oot_shifts'), tex: '\\mathrm{eig}(H_{ls})/2\\pi', args: A(Sarg, XYZ, VXYZ),
       returns: 'three shifts in MHz (lowest first)', example: 'oot_shifts(S, 0 mm, 0 mm, 3 mm, 0, 0, 0)' },
+    { name: 'OOT light-shift Hamiltonian of ¹P₁', sig: 'oot_H(S, x, y, z, vx, vy, vz, basis)', js: fn('oot_H'),
+      tex: 'H_{ls}/h = \\frac{1}{2\\pi}\\sum_l \\frac{\\pi\\Gamma_s I_l(\\vec r)}{2\\hbar c k_s^3}\\,\\frac{\\Delta_l}{\\Delta_l^2+\\Gamma_s^2/4}\\,|\\hat\\epsilon_l^*\\rangle\\langle\\hat\\epsilon_l^*|,\\ \\Delta_l = \\Delta_{s,l} - k_s\\hat k_l\\cdot\\vec v',
+      args: A(Sarg, XYZ, { vx: 'velocity (optional; leave out all three for the static field)', vy: 'velocity', vz: 'velocity', basis: '"xyz" (default, the simulation’s |x⟩,|y⟩,|z⟩) or "m" (|m=+1⟩, |0⟩, |−1⟩ along z)' }),
+      returns: '3×3 Hermitian matrix in MHz (H/h)', example: 'oot_H(S, 1 mm, 0 mm, 3 mm)',
+      also: ['oot_H(S, 1 mm, 0 mm, 3 mm, "m")', 'diagonalize(oot_H(S, 1 mm, 0 mm, 3 mm, 0, 0, 20 m/s, "m"))'],
+      notes: 'shift_hamiltonian() in oot_shift_beams.py divided by 2π. At v = 0 it is pure vector shift, g_F μB B_eff·J/h with J = Jx(1), Jy(1), Jz(1) in the "m" basis; its eigenvalues are oot_shifts(…).' },
     { name: 'OOT shift-beam intensity at a point', sig: 'oot_I(S, x, y, z)', js: fn('oot_I'), tex: '\\sum_l I_l(\\vec r)', args: A(Sarg, XYZ), returns: 'W/cm², all components', example: 'oot_I(S, 0 mm, 0 mm, 0 mm)' },
     { name: 'OOT effective gradient tensor at the centre', sig: 'oot_grad(S)', js: fn('oot_grad'), tex: '\\beta_{ij} = \\partial B_{eff,j}/\\partial r_i', args: Sarg,
       returns: '3×3 in G/cm (≈ β·diag(1, 1, −2))', example: 'oot_grad(S)', notes: 'gradient_tensor() in oot_shift_beams.py.' },
