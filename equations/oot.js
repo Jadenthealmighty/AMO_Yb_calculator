@@ -23,8 +23,8 @@
 
   var OOT = P.oot = {
     // shift transition ¹P₁ → 6s7s ¹S₀ (oot_shift_beams.py)
-    E_1P1_CM: 25068.222,
-    E_6S7S_CM: 34350.65,
+    E_1P1_CM: 250268.222,
+    E_6S7S_CM: 34350.68364,   // from our measurements of the transition
     GAMMA_S: 3.0e7,            // s⁻¹, Γs (= A(6s7s ¹S₀ → ¹P₁) from the 4.31 ea₀ matrix element)
     GF_1P1: 1.035,
     // cooling transition ¹S₀ → ¹P₁, 399 nm (data/yb174.js)
